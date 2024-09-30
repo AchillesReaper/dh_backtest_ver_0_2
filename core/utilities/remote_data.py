@@ -43,6 +43,7 @@ def get_stock_futu_api(underlying:str, start_date:str, end_date:str, ktype:KLTyp
     data['trade_date'] = norm_td
     data = data.drop(columns=['dummy_col', 'real_td'])
     data = data[data['trade_date'] != 'NA']
+    data.rename(columns={'time_key':'datetime'}, inplace=True)
 
     return data
 

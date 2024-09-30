@@ -11,13 +11,14 @@ import pandas as pd
 from core.backtest import BacktestEngine
 from core.utilities.remote_data import get_stock_futu_api
 from core.trading_acc import FutureTradingAccount
+from core.visualization import PlotApp
 
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 pd.set_option('display.width', None)
 
 class GoldenCross(BacktestEngine):
-    def get_hist_data(self):
+    def get_hist_data(self) -> pd.DataFrame:
         df_raw = get_stock_futu_api(
             underlying  = self.underlying,
             start_date  = self.start_date,
@@ -147,7 +148,7 @@ if __name__ == "__main__":
     engine = GoldenCross(
         folder_path         = "strategy/data/golden_cross",
         is_rerun_backtest   = True,
-        is_update_data      = False,
+        is_update_data      = True,
         initial_capital     = 150_000,
         underlying  = "HK.HSImain",
         start_date  = "2024-03-01",
@@ -161,5 +162,5 @@ if __name__ == "__main__":
         }
     )
 
-
-    engine.run()
+    bt_result_list = engine.run()
+    PlotApp(bt_result_list).plot()
