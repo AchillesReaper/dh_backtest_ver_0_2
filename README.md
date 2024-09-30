@@ -1,5 +1,11 @@
 # Introduction
 
+# Table of Contents
+ - [Start](#start)
+ - [Structure](#structure)
+    - [Flowchart](#flowchart)
+    - [File structure](#file-structure)
+- [Usage](#usage)
 
 
 # Start
@@ -18,7 +24,7 @@ you may need to run below command below to let the virtual environment know wher
 ## Flowchart
 ![BacktestEngine flowchart](core/md_pic/BacktestEngine_flowchart.png)
 
-## Working Directory
+## File structure
 You should write your trading strategies under folder `/strategy`.  <br> <br>
 Strongly recommend setting strategy data folder in below format,    <br>
 `/strategy/data/<strategy_name>/`  <br>
@@ -28,20 +34,26 @@ While you run backtest, the raw data and backtest results will be stored accordi
 ```
 root: DH-BACKTEST_VER_0_2
 |-- core
-    |-- md_pic
-    |-- utilities
-    |-- backtest.py
-    |-- trading_acc.py
-    |-- visualization.py
+|    |-- md_pic
+|    |-- utilities
+|    |-- backtest.py
+|    |-- trading_acc.py
+|    |-- visualization.py
+|
 |-- data
-    |-- risk_free_rate
+|    |-- risk_free_rate
+|
 |-- strategy
-    |-- data
-        |-- <strategy_name>
-            |-- bt_results
-            |-- raw
-    |-- <strategy_name>.py
-    |-- <strategy_name>.py
+|    |-- data
+|    |    |-- <strategy_name>
+|    |        |-- bt_results
+|    |        |-- raw
+|    |
+|    |-- <strategy_name>.py
+|    |-- <strategy_name>.py
+|
+|-- .gitignore
+|-- requirements.txt
 
 ```
 

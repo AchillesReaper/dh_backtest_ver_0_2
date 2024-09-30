@@ -90,6 +90,7 @@ class PlotApp:
         money       = dash_table.FormatTemplate.money(2)
         percentage  = dash_table.FormatTemplate.percentage(2)
         self.app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+        self.app.title  = f'{df_bt_result_list[0].attrs["strategy"]} - Backtest Results'
         self.app.layout = html.Div(
                 style    = self.style_root_div,
                 children = [
