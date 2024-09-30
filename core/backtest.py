@@ -33,6 +33,7 @@ class BacktestEngine:
         self.end_date           = end_date
         self.bar_size           = bar_size
         self.para_dict          = para_dict
+        self.file_name          = underlying.replace('-', '').replace('.', '').replace(' ', '')
 
 
 
@@ -55,8 +56,7 @@ class BacktestEngine:
         para_list = list(itertools.product(*para_values))
 
         df = pd.DataFrame(para_list, columns=para_keys)
-        clean_symbol = self.underlying.replace('-', '').replace('.', '').replace(' ', '')
-        ref_tag = [f'{clean_symbol}_bt_{i+1:03d}' for i in df.index]
+        ref_tag = [f'{self.file_name}_bt_{i+1:03d}' for i in df.index]
         df['ref_tag'] = ref_tag
         df.set_index('ref_tag', inplace=True)
         self.para_comb_dict = df.to_dict(orient='index')
@@ -108,7 +108,6 @@ class BacktestEngine:
         This function responsible for generating trading signals based on the raw data and para combination.
         '''
         # 1. initialize the trading, a) create a trade account, b) initialize the trading dataframe
-        trade_acc = 'xyz'
         df_bt_result = self.init_trading(df_testing_signal)
 
         # 2. loop through the signals
