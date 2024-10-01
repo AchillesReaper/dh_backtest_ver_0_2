@@ -36,10 +36,10 @@ def get_stock_futu_api(underlying:str, start_date:str, end_date:str, ktype:KLTyp
     for index, row in data.iterrows():
         if row['dummy_col'].hour > 8:
             norm_td.append(row['real_td'])
-        elif index == 0:
-            norm_td.append('NA')
-        else:
+        elif index != 0:
             norm_td.append(norm_td[-1])
+        else:
+            norm_td.append('NA')
     data['trade_date'] = norm_td
     data = data.drop(columns=['dummy_col', 'real_td'])
     data = data[data['trade_date'] != 'NA']
