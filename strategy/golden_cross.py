@@ -64,7 +64,7 @@ class GoldenCross(BacktestEngine):
         for index, row in df_testing_signal.iterrows():
             is_signal_buy   = row['signal'] == 1
             is_signal_sell  = row['signal'] == -1
-            is_mtm          = True  # current row is marked to market if open or close position
+            is_mtm          = False  # current row is marked to market if open or close position
 
             # a) determine if it is time to open position
             ''' Strategy: 
@@ -83,6 +83,7 @@ class GoldenCross(BacktestEngine):
                     df_bt_resilt.loc[index, 't_price']      = row['close']
                     df_bt_resilt.loc[index, 'commission']   = commission
                     df_bt_resilt.loc[index, 'pnl_action']   = -commission
+                    is_mtm = True
                 elif is_signal_sell and trade_account.position_size <= 0:
                     t_size     = -1
                     commission = trade_account.open_position(t_size, row['close'])
@@ -92,8 +93,7 @@ class GoldenCross(BacktestEngine):
                     df_bt_resilt.loc[index, 't_price']      = row['close']
                     df_bt_resilt.loc[index, 'commission']   = commission
                     df_bt_resilt.loc[index, 'pnl_action']   = -commission
-            else:
-                is_mtm = False
+                    is_mtm = True
 
             # b) determine if it is time to close position
             ''' Strategy:
@@ -104,7 +104,7 @@ class GoldenCross(BacktestEngine):
             target_pnl      = para_comb['target_profit']
             stop_loss       = -para_comb['stop_loss']
 
-            if trade_account.position_size != 0:
+            if not is_mtm and trade_account.position_size != 0:
                 contract_pnl    = (row['close'] - trade_account.position_price) * trade_account.position_size
                 if contract_pnl >= target_pnl or contract_pnl < stop_loss:
                     t_size     = copy.deepcopy(-trade_account.position_size)
@@ -116,8 +116,7 @@ class GoldenCross(BacktestEngine):
                     df_bt_resilt.loc[index, 't_price']      = t_price 
                     df_bt_resilt.loc[index, 'commission']   = commission
                     df_bt_resilt.loc[index, 'pnl_action']   = pnl_realized
-            else:
-                is_mtm = False
+                    is_mtm = True
 
             # c) mark profile value to market
             if not is_mtm:
@@ -147,8 +146,8 @@ class GoldenCross(BacktestEngine):
 if __name__ == "__main__":
     engine = GoldenCross(
         folder_path         = "strategy/data/golden_cross",
-        is_rerun_backtest   = True,
-        is_update_data      = True,
+        is_rerun_backtest   = False,
+        is_update_data      = False,
         initial_capital     = 150_000,
         underlying  = "HK.HSImain",
         start_date  = "2024-03-01",
