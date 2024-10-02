@@ -96,7 +96,7 @@ class PlotApp:
                 children = [
                     html.Div( id    = "header", style = self.style_header,
                         className   = 'row', 
-                        children    = 'Backtest Results'
+                        children    = f'{self.app.title}'
                     ),
                     html.Div( id    = "body", style = self.style_body,
                         className   = 'row', 
@@ -240,19 +240,30 @@ class PlotApp:
             ],
             [
                 Input('current_ref', 'data'),
+                Input('graph_curve_detail', 'relayoutData'),
             ],
             [
                 State('grapph_all_curves', 'figure'),
+                State('current_ref', 'data'),
             ],
             allow_duplicate=True
         )
-        def update_for_ceuurent_ref(current_ref, figure_all_curves):
+        def update_for_ceuurent_ref(current_ref, detail_relayoutData, figure_all_curves, s_current_ref):
             ctx = dash.callback_context
-            if (not ctx.triggered) or (not current_ref): raise PreventUpdate
-            
+            if (not ctx.triggered): raise PreventUpdate   
             trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
             cprint(f'trigger_id: {trigger_id}', 'green')
 
+            if trigger_id == 'graph_curve_detail' and 'xaxis.range[0]' in detail_relayoutData:
+                x_min = detail_relayoutData['xaxis.range[0]']
+                x_max = detail_relayoutData['xaxis.range[1]']
+                filtered_df = df_bt_result_dict[s_current_ref][['datetime', 'nav', 'open', 'low', 'high', 'close', 't_size', 't_price', 'signal', 'action', 'logic', 'pnl_action', 'cap_usage', 'pos_size']]
+                filtered_df = filtered_df[(filtered_df['datetime'] >= x_min) & (filtered_df['datetime'] <= x_max)]
+
+                figure_curve_detail = self.plot_detail(filtered_df)
+                return figure_curve_detail, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+            
+            # consquence of updating the current reference state
             if current_ref:
                 for trace in figure_all_curves['data']:
                     if trace['customdata'][0] == current_ref:
@@ -308,21 +319,14 @@ class PlotApp:
             return figure_curve_detail, figure_all_curves, style_data_conditional, df_table_1.to_dict('records'), df_table_2.to_dict('records'), df_table_para.to_dict('records')
 
 
-
     def plot_detail(self, df_bt_result: pd.DataFrame) -> go.Figure:
-        fig = make_subplots(specs=[[{'secondary_y': True}]])
-        # price movement of the underlying
-        fig.add_trace(
-            go.Candlestick(
-                x       = df_bt_result['datetime'],
-                open    = df_bt_result['open'],
-                high    = df_bt_result['high'],
-                low     = df_bt_result['low'],
-                close   = df_bt_result['close'],
-                name    = 'Price',
-            ),
-            secondary_y=False
-            )
+        fig = make_subplots(
+            rows=3, cols=1,
+            row_heights=[0.6, 0.2, 0.2],
+            vertical_spacing=0.03,
+            shared_xaxes=True,
+            specs=[[{'secondary_y': True}], [{'secondary_y': True}], [{'secondary_y': True}]]
+        )
         # equity curve
         fig.add_trace(
             go.Scatter(
@@ -333,10 +337,24 @@ class PlotApp:
                 line    =dict(color='green', width=2),
                 customdata = [df_bt_result.attrs['ref_tag']] * len(df_bt_result),
             ),
+            row=1, col=1,
             secondary_y=True,
         )
+        # price movement of the underlying
+        fig.add_trace(
+            go.Candlestick(
+                x       = df_bt_result['datetime'],
+                open    = df_bt_result['open'],
+                high    = df_bt_result['high'],
+                low     = df_bt_result['low'],
+                close   = df_bt_result['close'],
+                name    = 'Price',
+            ),
+            row=1, col=1,
+            secondary_y=False
+            )
         # actions - buy
-        action_buy_df = df_bt_result[df_bt_result['action'] == 'buy']
+        action_buy_df = df_bt_result[df_bt_result['t_size'] > 0]
         fig.add_trace(
             go.Scatter(
                 x       =action_buy_df['datetime'],
@@ -350,14 +368,15 @@ class PlotApp:
                 name='Buy',
                 text='Open: ' 
                     + action_buy_df['t_size'].astype(str) + '@' + action_buy_df['t_price'].astype(str) 
-                    + ' (signal: ' + action_buy_df['signal'] + ')',
+                    + ' (signal: buy)',
                 hoverinfo='text',
                 customdata = [df_bt_result.attrs['ref_tag']] * len(df_bt_result),
             ),
+            row=1, col=1,
             secondary_y=False,
         )
         # actions - sell
-        action_sell_df = df_bt_result[df_bt_result['action'] == 'sell']
+        action_sell_df = df_bt_result[df_bt_result['t_size'] < 0]
         fig.add_trace(
             go.Scatter(
                 x       =action_sell_df['datetime'],
@@ -371,13 +390,14 @@ class PlotApp:
                 name='Sell',
                 text='Open: ' 
                     + action_sell_df['t_size'].astype(str) + '@' + action_sell_df['t_price'].astype(str) 
-                    + ' (signal: ' + action_sell_df['signal'] + ')',
+                    + ' (signal: sell)',
                 hoverinfo='text',
                 customdata = [df_bt_result.attrs['ref_tag']] * len(df_bt_result),
             ),
+            row=1, col=1,
             secondary_y=False,
         )
-        #actions - close
+        # actions - close
         action_close_df = df_bt_result[df_bt_result['action'] == 'close']
         fig.add_trace(
             go.Scatter(
@@ -396,19 +416,88 @@ class PlotApp:
                 hoverinfo='text',
                 customdata = [df_bt_result.attrs['ref_tag']] * len(df_bt_result),
             ),
+            row=1, col=1,
+            secondary_y=False,
+        )
+
+        # capital usage
+        fig.add_trace(
+            go.Scatter(
+                x       = df_bt_result['datetime'],
+                y       = df_bt_result['cap_usage'].apply(lambda x: float(x)*100),
+                mode    = 'lines',
+
+                name    = 'Capital',
+                line    = dict(color='orange', width=2),
+                customdata = [df_bt_result.attrs['ref_tag']] * len(df_bt_result),
+            ),
+            row=2, col=1,
+            secondary_y=False,
+        )
+
+        # position size
+        fig.add_trace(
+            go.Scatter(
+                x       = df_bt_result['datetime'],
+                y       = df_bt_result['pos_size'],
+                mode    = 'lines',
+                name    = 'Position Size',
+                line    = dict(color='purple', width=2),
+                customdata = [df_bt_result.attrs['ref_tag']] * len(df_bt_result),
+            ),
+            row=3, col=1,
             secondary_y=False,
         )
 
         fig.update_layout(
             height=800,
-            yaxis=dict(tickformat=',', autorange=True),
-            yaxis2=dict(tickformat=',', autorange=True),
-            xaxis=dict(showticklabels=True, autorange=True, type='date'),
             autosize=True,
             hovermode='closest',
             hoverlabel=dict(bgcolor='#af9b46', font_size=16, font_family='Rockwell',),
             paper_bgcolor='#F8EDE3',
             xaxis_rangeslider_visible=False,
+            # row 1 plot
+            xaxis=dict(
+                showticklabels=True,
+                showspikes=True, spikemode='toaxis+marker', spikesnap='cursor', showline=True
+            ),
+            yaxis=dict(
+                tickformat=',',
+                showgrid=True,
+                autorange=True,
+                showspikes=True, spikemode='toaxis+marker', spikesnap='cursor', showline=True
+            ),
+            yaxis2=dict(
+                tickformat=',',
+                showgrid=True,
+                autorange=True,
+                showspikes=True, spikemode='toaxis+marker', spikesnap='cursor', showline=True
+            ),
+            # row 2 plot
+            xaxis2=dict(
+                showticklabels=False,
+                showspikes=True, spikemode='toaxis+marker', spikesnap='cursor', showline=True
+            ),
+            yaxis3=dict(
+                side='right',
+                tickformat=',',
+                showgrid=True,
+                autorange=True,
+                showspikes=True, spikemode='toaxis+marker', spikesnap='cursor', showline=True
+            ),
+            # row 3 plot
+            xaxis3=dict(
+                showticklabels=False,
+                showspikes=True, spikemode='toaxis+marker', spikesnap='cursor', showline=True
+            ),
+            yaxis5=dict(
+                side='right',
+                tickformat=',',
+                showgrid=True,
+                autorange=True,
+                showspikes=True, spikemode='toaxis+marker', spikesnap='cursor', showline=True
+            ),
+
         )
 
         return fig
