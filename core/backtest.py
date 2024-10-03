@@ -20,12 +20,13 @@ class BacktestEngine:
     
     def __init__(
             self, 
-            folder_path:str, is_rerun_backtest:bool, is_update_data:bool,
+            folder_path:str, is_rerun_backtest:bool, is_update_data:bool, summary_mode:bool,
             initial_capital:float,
             underlying:str, start_date:str, end_date:str, bar_size:str, para_dict:dict
         ) -> None:
         self.folder_path        = folder_path
         self.is_rerun_backtest  = is_rerun_backtest
+        self.summary_mode       = summary_mode
         self.is_update_data     = is_update_data
         self.init_capital       = initial_capital
         self.underlying         = underlying
@@ -270,6 +271,8 @@ class BacktestEngine:
 
         # 2. save the backtest result to local file
         bt_result_folder = os.path.join(self.folder_path, 'bt_results')
+        if self.summary_mode:
+            df_bt_result = df_bt_result[df_bt_result['t_size'] != 0]
         to_csv_with_metadata(df_bt_result, ref_tag, bt_result_folder)
         
         # 3. return the backtest result
