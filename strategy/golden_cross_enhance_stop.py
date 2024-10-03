@@ -64,7 +64,7 @@ class GoldenCrossEnhanceStop(BacktestEngine):
         for index, row in df_testing_signal.iterrows():
             is_signal_buy   = row['signal'] == 1
             is_signal_sell  = row['signal'] == -1
-            is_mtm          = True  # current row is marked to market if open or close position
+            is_mtm          = False  # current row is marked to market if open or close position
 
             # a) determine if it is time to open position
             ''' Strategy: 
@@ -83,6 +83,8 @@ class GoldenCrossEnhanceStop(BacktestEngine):
                     df_bt_resilt.loc[index, 't_price']      = row['close']
                     df_bt_resilt.loc[index, 'commission']   = commission
                     df_bt_resilt.loc[index, 'pnl_action']   = -commission
+                    trade_account.stop_level = row['close'] - para_comb['stop_loss']
+                    is_mtm = True
                 elif is_signal_sell and trade_account.position_size <= 0:
                     t_size     = -1
                     commission = trade_account.open_position(t_size, row['close'])
@@ -92,32 +94,30 @@ class GoldenCrossEnhanceStop(BacktestEngine):
                     df_bt_resilt.loc[index, 't_price']      = row['close']
                     df_bt_resilt.loc[index, 'commission']   = commission
                     df_bt_resilt.loc[index, 'pnl_action']   = -commission
-            else:
-                is_mtm = False
+                    trade_account.stop_level = row['close'] + para_comb['stop_loss']
+                    is_mtm = True
 
             # b) determine if it is time to close position
             ''' Strategy:
-            1. when the position profit reach the target, close the position
-            2. when the position loss reach the stop loss, close the position
-            3. when the margin call, close the position -> this is handled in the mark_to_market function
+            1. when the position loss reach the stop loss, close the position
+            2. when the margin call, close the position -> this is handled in the mark_to_market function
             '''
-            target_pnl      = para_comb['target_profit']
-            stop_loss       = -para_comb['stop_loss']
-
-            if trade_account.position_size != 0:
-                contract_pnl    = (row['close'] - trade_account.position_price) * trade_account.position_size
-                if contract_pnl >= target_pnl or contract_pnl < stop_loss:
+            if not is_mtm:
+                is_close_position = (trade_account.position_size > 0 and row['close'] < trade_account.stop_level) or (trade_account.position_size < 0 and row['close'] > trade_account.stop_level)
+                if is_close_position:
                     t_size     = copy.deepcopy(-trade_account.position_size)
                     t_price    = row['close']
                     commission, pnl_realized = trade_account.close_position(t_size, t_price)
                     df_bt_resilt.loc[index, 'action']       = 'close'
-                    df_bt_resilt.loc[index, 'logic']        = 'target profit' if contract_pnl >= target_pnl else 'stop loss'
+                    df_bt_resilt.loc[index, 'logic']        = 'enhanced stop'
                     df_bt_resilt.loc[index, 't_size']       = t_size
                     df_bt_resilt.loc[index, 't_price']      = t_price 
                     df_bt_resilt.loc[index, 'commission']   = commission
                     df_bt_resilt.loc[index, 'pnl_action']   = pnl_realized
-            else:
-                is_mtm = False
+                    is_mtm = True
+
+
+            
 
             # c) mark profile value to market
             if not is_mtm:
@@ -129,6 +129,10 @@ class GoldenCrossEnhanceStop(BacktestEngine):
                     df_bt_resilt.loc[index, 't_price']      = mtm_res['t_price']
                     df_bt_resilt.loc[index, 'commission']   = mtm_res['commission']
                     df_bt_resilt.loc[index, 'pnl_action']   = mtm_res['pnl_realized']
+                if trade_account.position_size > 0 and row['close'] > trade_account.stop_level + para_comb['stop_loss'] + para_comb['ladder']:
+                    trade_account.stop_level += para_comb['stop_loss']
+                elif trade_account.position_size < 0 and row['close'] < trade_account.stop_level - para_comb['stop_loss'] - para_comb['ladder']:
+                    trade_account.stop_level -= para_comb['stop_loss']
             
             # d) record account status in df_bt_resilt
             df_bt_resilt.loc[index,'pos_size']       = trade_account.position_size
@@ -138,27 +142,27 @@ class GoldenCrossEnhanceStop(BacktestEngine):
             df_bt_resilt.loc[index,'bal_cash']       = trade_account.bal_cash
             df_bt_resilt.loc[index,'bal_avialable']  = trade_account.bal_avialable
             df_bt_resilt.loc[index,'margin_initial'] = trade_account.margin_initial
-            df_bt_resilt.loc[index,'cap_usage']      = f'{trade_account.cap_usage:.2f}%'
+            df_bt_resilt.loc[index,'cap_usage']      = f'{trade_account.cap_usage:.4f}'
 
         return df_bt_resilt
 
 
 
 if __name__ == "__main__":
-    engine = GoldenCross(
-        folder_path         = "strategy/data/golden_cross",
+    engine = GoldenCrossEnhanceStop(
+        folder_path         = "strategy/data/golden_cross_es",
         is_rerun_backtest   = False,
         is_update_data      = False,
         initial_capital     = 150_000,
         underlying  = "HK.HSImain",
-        start_date  = "2024-03-01",
+        start_date  = "2016-03-01",
         end_date    = "2024-08-30",
         bar_size    = KLType.K_30M,
         para_dict   = {
             'short_window'  : [5],
             'long_window'   : [20],
             'stop_loss'     : [50],
-            'target_profit' : [100,150,200],
+            'ladder'        : [20,30,40],
         }
     )
 
