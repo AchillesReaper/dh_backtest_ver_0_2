@@ -151,9 +151,10 @@ class GoldenCrossEnhanceStop(BacktestEngine):
 if __name__ == "__main__":
     engine = GoldenCrossEnhanceStop(
         folder_path         = "strategy/data/golden_cross_es",
-        is_rerun_backtest   = False,
+        is_rerun_backtest   = True,
         is_update_data      = False,
-        initial_capital     = 150_000,
+        summary_mode        = True,
+        initial_capital     = 500_000,
         underlying  = "HK.HSImain",
         start_date  = "2016-03-01",
         end_date    = "2024-08-30",
