@@ -200,11 +200,13 @@ class GoldenCrossEnhanceStop(BacktestEngine):
         df_raw.set_index('datetime', inplace=True)
         df_raw.index = pd.to_datetime(df_raw.index)
         df_raw = df_raw.between_time('09:00', '11:00')
+        df_raw.reset_index(inplace=True)
 
         # match the trade date with market profile data
         df_mp = pd.read_csv(f'{self.folder_path}/shape/{self.file_name}_mp_{self.start_date}_{self.end_date}.csv', index_col=0)
-        df_raw = df_raw.merge(df_mp[['skewness', 'kurtosis', 'val', 'vah', 'spkl', 'spkh', 'shape', 'pocs', 'tpo_count']], how='left', on='trade_date')
-        
+        df_raw = pd.merge(df_raw, df_mp[['skewness', 'kurtosis', 'val', 'vah', 'spkl', 'spkh', 'shape', 'pocs', 'tpo_count']], how='left', on='trade_date')
+        df_raw.set_index('datetime', inplace=True)
+
         return  df_raw
     
 
