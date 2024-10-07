@@ -41,7 +41,7 @@ class GoldenCrossEnhanceStop(BacktestEngine):
 
         return df_td
 
-    def generate_mp(self):
+    def generate_mp(self) -> None:
         '''
         This function generates the market profile shape for HSI with 
         30 minutes bar, 
@@ -183,6 +183,7 @@ class GoldenCrossEnhanceStop(BacktestEngine):
         if not os.path.exists(f'{self.folder_path}/shape'): os.makedirs(f'{self.folder_path}/shape')
         df_mp.to_csv(f'{self.folder_path}/shape/{mp_file_name}', index=False)
         cprint(f'Market Profile data saved to {self.folder_path}/shape/{mp_file_name}', 'green')
+        return None
         
 
     def get_hist_data(self) -> pd.DataFrame:
@@ -195,29 +196,32 @@ class GoldenCrossEnhanceStop(BacktestEngine):
         df_raw.drop(columns=['pe_ratio', 'turnover_rate', 'last_close','turnover'], inplace=True)
 
         # trim the raw data frame, only sessions between 9:00 to 11:00 are left
-        df_raw['datetime_dummy'] = df_raw['datetime'].apply(lambda x: x+'+08:00')
-        df_raw.set_index('datetime_dummy', inplace=True)
+        df_raw['datetime'] = df_raw['datetime'].apply(lambda x: x+'+08:00')
+        df_raw.set_index('datetime', inplace=True)
         df_raw.index = pd.to_datetime(df_raw.index)
         df_raw = df_raw.between_time('09:00', '11:00')
-        df_raw.set_index('trade_date', inplace=True)
 
         # match the trade date with market profile data
         df_mp = pd.read_csv(f'{self.folder_path}/shape/{self.file_name}_mp_{self.start_date}_{self.end_date}.csv', index_col=0)
         dict_mp = df_mp.to_dict('index')
+
         for index, row in df_raw.iterrows():
-            df_raw.loc[index, 'val']        = dict_mp[index]['val']
-            df_raw.loc[index, 'vah']        = dict_mp[index]['vah']
-            df_raw.loc[index, 'spkl']       = dict_mp[index]['spkl']
-            df_raw.loc[index, 'spkh']       = dict_mp[index]['spkh']
-            df_raw.loc[index, 'shape']      = dict_mp[index]['shape']
-            df_raw.loc[index, 'pocs']       = dict_mp[index]['pocs']
-            df_raw.loc[index, 'tpo_count']  = dict_mp[index]['tpo_count']
+            trade_date = row['trade_date']
+            df_raw.loc[index, 'val']        = dict_mp[trade_date]['val']
+            df_raw.loc[index, 'vah']        = dict_mp[trade_date]['vah']
+            df_raw.loc[index, 'spkl']       = dict_mp[trade_date]['spkl']
+            df_raw.loc[index, 'spkh']       = dict_mp[trade_date]['spkh']
+            df_raw.loc[index, 'shape']      = dict_mp[trade_date]['shape']
+            df_raw.loc[index, 'pocs']       = dict_mp[trade_date]['pocs']
+            df_raw.loc[index, 'tpo_count']  = dict_mp[trade_date]['tpo_count']
+
         return  df_raw
     
 
     def generate_signal(self, df_testing:pd.DataFrame, para_comb:dict) -> pd.DataFrame:
-        # trim the raw data frame, only sessions between 9:00 to 11:00 are left
-        print(self.df_hist_data)
+
+        print(df_testing.head(10))
+        print(df_testing.at['2024-01-02 09:30:00+08:00', 'tpo_count'])
         sys.exit()
 
         return df_testing
@@ -295,12 +299,11 @@ if __name__ == "__main__":
         },
         folder_path         = "strategy/data/mp_ling",
         is_rerun_backtest   = True,
-        is_update_data      = False,
+        is_update_data      = True,
         summary_mode        = True,
         multi_process_mode  = False,
     )
-
+    if engine.is_update_data: engine.generate_mp()
     bt_result_list = engine.run()
     # PlotApp(bt_result_list).plot()
 
-    # engine.generate_mp()
