@@ -203,27 +203,15 @@ class GoldenCrossEnhanceStop(BacktestEngine):
 
         # match the trade date with market profile data
         df_mp = pd.read_csv(f'{self.folder_path}/shape/{self.file_name}_mp_{self.start_date}_{self.end_date}.csv', index_col=0)
-        dict_mp = df_mp.to_dict('index')
-
-        for index, row in df_raw.iterrows():
-            trade_date = row['trade_date']
-            df_raw.loc[index, 'val']        = dict_mp[trade_date]['val']
-            df_raw.loc[index, 'vah']        = dict_mp[trade_date]['vah']
-            df_raw.loc[index, 'spkl']       = dict_mp[trade_date]['spkl']
-            df_raw.loc[index, 'spkh']       = dict_mp[trade_date]['spkh']
-            df_raw.loc[index, 'shape']      = dict_mp[trade_date]['shape']
-            df_raw.loc[index, 'pocs']       = dict_mp[trade_date]['pocs']
-            df_raw.loc[index, 'tpo_count']  = dict_mp[trade_date]['tpo_count']
-
+        df_raw = df_raw.merge(df_mp[['skewness', 'kurtosis', 'val', 'vah', 'spkl', 'spkh', 'shape', 'pocs', 'tpo_count']], how='left', on='trade_date')
+        
         return  df_raw
     
 
     def generate_signal(self, df_testing:pd.DataFrame, para_comb:dict) -> pd.DataFrame:
-
+        # for index, row in df_testing.iterrows():
         print(df_testing.head(10))
-        print(df_testing.at['2024-01-02 09:30:00+08:00', 'tpo_count'])
         sys.exit()
-
         return df_testing
 
 
