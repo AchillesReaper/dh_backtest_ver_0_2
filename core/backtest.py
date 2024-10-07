@@ -20,13 +20,15 @@ class BacktestEngine:
     
     def __init__(
             self, 
-            folder_path:str, is_rerun_backtest:bool, is_update_data:bool, summary_mode:bool,
             initial_capital:float,
-            underlying:str, start_date:str, end_date:str, bar_size:str, para_dict:dict
+            underlying:str, start_date:str, end_date:str, bar_size:str, para_dict:dict,
+            folder_path:str, 
+            is_rerun_backtest:bool=True, is_update_data:bool=True, summary_mode:bool=False, multi_process_mode:bool=False,
         ) -> None:
         self.folder_path        = folder_path
         self.is_rerun_backtest  = is_rerun_backtest
         self.summary_mode       = summary_mode
+        self.multi_process_mode = multi_process_mode
         self.is_update_data     = is_update_data
         self.init_capital       = initial_capital
         self.underlying         = underlying
@@ -333,10 +335,14 @@ class BacktestEngine:
             self.risk_free_rate = self.get_risk_free_rate()
 
             # run the backtest for each parameter combination
-            num_processors = multiprocessing.cpu_count()
-            print(f"Running backtest with processors of: {num_processors}")
-            with multiprocessing.Pool(num_processors) as pool:
-                backtest_results = pool.starmap(self.simulate_trade, [(ref_tag,) for ref_tag in self.para_comb_dict.keys()])
+            if self.multi_process_mode:
+                num_processors = multiprocessing.cpu_count()
+                print(f"Running backtest with processors of: {num_processors}")
+                with multiprocessing.Pool(num_processors) as pool:
+                    backtest_results = pool.starmap(self.simulate_trade, [(ref_tag,) for ref_tag in self.para_comb_dict.keys()])
+            else:
+                for ref_tag in self.para_comb_dict.keys():
+                    backtest_results.append(self.simulate_trade(ref_tag))
         else:
             backtest_results = self.read_backtest_result()
 
