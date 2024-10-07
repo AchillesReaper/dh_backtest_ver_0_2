@@ -150,21 +150,22 @@ class GoldenCrossEnhanceStop(BacktestEngine):
 
 if __name__ == "__main__":
     engine = GoldenCrossEnhanceStop(
-        folder_path         = "strategy/data/golden_cross_es",
-        is_rerun_backtest   = True,
-        is_update_data      = False,
-        summary_mode        = True,
         initial_capital     = 500_000,
         underlying  = "HK.HSImain",
-        start_date  = "2016-03-01",
+        start_date  = "2024-08-01",
         end_date    = "2024-08-30",
-        bar_size    = KLType.K_30M,
+        bar_size    = KLType.K_5M,
         para_dict   = {
             'short_window'  : [5],
             'long_window'   : [20],
             'stop_loss'     : [50],
             'ladder'        : [20,30,40],
-        }
+        },
+        folder_path         = "strategy/data/golden_cross_es",
+        is_rerun_backtest   = True,
+        is_update_data      = True,
+        summary_mode        = True,
+        multi_process_mode  = True,
     )
 
     bt_result_list = engine.run()
