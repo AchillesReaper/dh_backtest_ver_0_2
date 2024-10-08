@@ -41,6 +41,7 @@ class GoldenCrossEnhanceStop(BacktestEngine):
 
         return df_td
 
+
     def generate_mp(self) -> None:
         '''
         This function generates the market profile shape for HSI with 
@@ -204,17 +205,100 @@ class GoldenCrossEnhanceStop(BacktestEngine):
 
         # match the trade date with market profile data
         df_mp = pd.read_csv(f'{self.folder_path}/shape/{self.file_name}_mp_{self.start_date}_{self.end_date}.csv', index_col=0)
-        df_raw = pd.merge(df_raw, df_mp[['skewness', 'kurtosis', 'val', 'vah', 'spkl', 'spkh', 'shape', 'pocs', 'tpo_count']], how='left', on='trade_date')
+        df_raw = pd.merge(df_raw, df_mp[['skewness', 'kurtosis', 'high', 'low', 'val', 'vah', 'spkl', 'spkh', 'shape', 'pocs', 'tpo_count']], how='left', on='trade_date')
         df_raw.set_index('datetime', inplace=True)
+        df_raw.rename(columns={'high_x':'high', 'low_x':'low', 'high_y':'high_d', 'low_y': 'low_d'}, inplace=True)
 
         return  df_raw
     
 
+    def is_break_through(self, td_shape:str, spike_mid_l:float, spike_mid_h:float, ao_loc:str, session_close:float, break_through:list) -> list:
+        if (td_shape not in ['b', 'p', 'n', 'double']) or (ao_loc not in ['u_spk', 'l_spk', 'va', 'poc']): 
+            return None
+        match td_shape:
+            case 'b':
+                match ao_loc:
+                    case 'u_spk':
+                        if session_close > spike_mid_h:
+                            break_through.append(True)
+                        else:
+                            break_through.append(False)
+                    case 'l_spk':
+                        if session_close < spike_mid_l:
+                            break_through.append(True)
+                        else:
+                            break_through.append(False)
+            case _:
+                pass
+        return break_through
+    
+    def is_signal(self, td_shape:str, spike_mid_l:float, spike_mid_h:float, val:float, vah:float, ao_loc:str, session_close:float, break_through:list) -> int:
+        match td_shape:
+            case 'b':
+                match ao_loc:
+                    case 'u_spk':
+                        if all(break_through) and (session_close < spike_mid_h + 50):
+                            return 1
+                        elif not all(break_through) and (session_close > vah):
+                            return -1
+                        else:
+                            return 0
+                    case 'l_spk':
+                        if all(break_through) and (session_close > spike_mid_l - 50):
+                            return -1
+                        elif not all(break_through) and (session_close < val):
+                            return 1
+                        else:
+                            return 0
+                pass
+            case _:
+                return 0
+
     def generate_signal(self, df_testing:pd.DataFrame, para_comb:dict) -> pd.DataFrame:
-        # for index, row in df_testing.iterrows():
-        print(df_testing.head(10))
+        df_testing['signal'] = 0
+
+        for td in df_testing['trade_date'].unique():
+            df_td = df_testing[df_testing['trade_date'] == td]
+            ao_loc          = 'na'      # 'na', 'u_spk', 'l_spk', 'va', 'poc
+            break_through   = []        # True, False
+            td_shape        = df_td['shape'].iloc[0]
+            spike_mid_l     = (df_td['spkl'].iloc[0] + df_td['low_d'].iloc[0]) / 2
+            spike_mid_h     = (df_td['spkh'].iloc[0] + df_td['high_d'].iloc[0]) / 2
+
+            for index, row in df_td.iterrows():
+                index_time = pd.Timestamp(index).time()
+                if index_time == pd.Timestamp('09:20').time():
+                    if row['open'] >= row['vah'] and row['open'] <= row['high_d']:
+                        ao_loc = 'u_spk'
+                        if row['close'] > spike_mid_h:
+                            break_through.append(True)
+                        else:
+                            break_through.append(False)
+                    elif row['open'] <= row['val'] and row['open'] >= row['low_d']:
+                        ao_loc = 'l_spk'
+                        if row['close'] < spike_mid_l:
+                            break_through.append(True)
+                        else:
+                            break_through.append(False)
+                    else:
+                        ao_loc = 'na'
+                        break
+                    cprint(f'index_time: {index}, ao_loc: {ao_loc}, break_through:{break_through}', 'blue')
+
+                elif index_time == pd.Timestamp('09:25').time():
+                    break_through = self.is_break_through(td_shape, spike_mid_l, spike_mid_h, ao_loc, row['close'], break_through)
+                    cprint(f'index_time: {index_time}, break_through:{break_through}', 'blue')
+
+                elif index_time == pd.Timestamp('09:30').time():
+                    df_testing.loc[index, 'signal'] = self.is_signal(td_shape, spike_mid_l, spike_mid_h, row['val'], row['vah'], ao_loc, row['close'], break_through)
+                    cprint(f'index_time: {index_time}, break_through:{break_through}, signal:{df_testing.loc[index, 'signal']}', 'blue')
+                
+                else:
+                    break
+        print(df_testing[df_testing['signal'] != 0][['open', 'high', 'low', 'close', 'vah', 'val', 'spkl', 'spkh', 'shape','signal']])
         sys.exit()
-        return df_testing
+
+
 
 
     def action_on_signal(self, df_testing_signal: pd.DataFrame, para_comb:dict) -> pd.DataFrame:
