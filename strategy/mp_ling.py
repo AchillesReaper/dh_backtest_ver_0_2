@@ -48,10 +48,12 @@ class GoldenCrossEnhanceStop(BacktestEngine):
         30 minutes bar, 
         entension trading hours bin into 2 bins,  17:00 to 21:29 and 21:30 to 02:30 
         '''
+        start_date = pd.Timestamp(self.start_date).__add__(pd.Timedelta(days=-7)).strftime('%Y-%m-%d')
+        end_date   = pd.Timestamp(self.end_date).__add__(pd.Timedelta(days=7)).strftime('%Y-%m-%d')   
         df_mp_raw = get_stock_futu_api(
             underlying  = self.underlying,
-            start_date  = self.start_date,
-            end_date    = self.end_date,
+            start_date  = start_date,
+            end_date    = end_date,
             ktype       = KLType.K_30M
         )
         df_mp_raw = df_mp_raw[['datetime', 'open', 'high', 'low', 'close', 'volume', 'trade_date']]
@@ -67,9 +69,7 @@ class GoldenCrossEnhanceStop(BacktestEngine):
             # combin the rows btw 21:30 to 03:30 into one
             df_td = self.combine_rows(df_td, '21:30', '04:00')
             df_mp_clean = df_mp_clean._append(df_td)
-        # print(df_mp_clean)
-        # sys.exit()
-        # work today
+
         trade_date_list     = df_mp_clean["trade_date"].unique()
         open_price_list     = []
         high_price_list     = []
@@ -179,11 +179,13 @@ class GoldenCrossEnhanceStop(BacktestEngine):
         df_shape = pd.read_csv('strategy/data/mp_ling/shape/HK_HSImain_shape_2021-01_2024-07.csv')[['trade_date', 'shape']]
         shape_dict = df_shape.set_index('trade_date').to_dict()['shape']
         df_mp['shape'] = df_mp['trade_date'].apply(lambda x: shape_dict[x] if x in shape_dict else None)
+        df_mp['for_td'] = df_mp['trade_date'].shift(-1)
 
         mp_file_name = f'{self.file_name}_mp_{self.start_date}_{self.end_date}.csv'
         if not os.path.exists(f'{self.folder_path}/shape'): os.makedirs(f'{self.folder_path}/shape')
         df_mp.to_csv(f'{self.folder_path}/shape/{mp_file_name}', index=False)
         cprint(f'Market Profile data saved to {self.folder_path}/shape/{mp_file_name}', 'green')
+
         return None
         
 
@@ -205,9 +207,11 @@ class GoldenCrossEnhanceStop(BacktestEngine):
 
         # match the trade date with market profile data
         df_mp = pd.read_csv(f'{self.folder_path}/shape/{self.file_name}_mp_{self.start_date}_{self.end_date}.csv', index_col=0)
-        df_raw = pd.merge(df_raw, df_mp[['skewness', 'kurtosis', 'high', 'low', 'val', 'vah', 'spkl', 'spkh', 'shape', 'pocs', 'tpo_count']], how='left', on='trade_date')
+        df_raw = pd.merge(df_raw, df_mp[['for_td', 'skewness', 'kurtosis', 'high', 'low', 'val', 'vah', 'spkl', 'spkh', 'shape', 'pocs', 'tpo_count']], left_on='trade_date', right_on='for_td', how='left')
         df_raw.set_index('datetime', inplace=True)
         df_raw.rename(columns={'high_x':'high', 'low_x':'low', 'high_y':'high_d', 'low_y': 'low_d'}, inplace=True)
+        print(df_raw.info())
+        print(df_raw[['trade_date', 'open', 'high', 'low', 'close', 'volume', 'skewness', 'kurtosis', 'val', 'vah', 'spkl', 'spkh', 'shape', ]])
 
         return  df_raw
     
@@ -270,32 +274,22 @@ class GoldenCrossEnhanceStop(BacktestEngine):
                 if index_time == pd.Timestamp('09:20').time():
                     if row['open'] >= row['vah'] and row['open'] <= row['high_d']:
                         ao_loc = 'u_spk'
-                        if row['close'] > spike_mid_h:
-                            break_through.append(True)
-                        else:
-                            break_through.append(False)
                     elif row['open'] <= row['val'] and row['open'] >= row['low_d']:
                         ao_loc = 'l_spk'
-                        if row['close'] < spike_mid_l:
-                            break_through.append(True)
-                        else:
-                            break_through.append(False)
                     else:
                         ao_loc = 'na'
                         break
-                    cprint(f'index_time: {index}, ao_loc: {ao_loc}, break_through:{break_through}', 'blue')
-
+                    df_testing.loc[df_td.index[0]:df_td.index[len(df_td)-1], 'ao_loc'] = ao_loc
+                    break_through = self.is_break_through(td_shape, spike_mid_l, spike_mid_h, ao_loc, row['close'], break_through)
                 elif index_time == pd.Timestamp('09:25').time():
                     break_through = self.is_break_through(td_shape, spike_mid_l, spike_mid_h, ao_loc, row['close'], break_through)
-                    cprint(f'index_time: {index_time}, break_through:{break_through}', 'blue')
-
                 elif index_time == pd.Timestamp('09:30').time():
+                    break_through = self.is_break_through(td_shape, spike_mid_l, spike_mid_h, ao_loc, row['close'], break_through)
                     df_testing.loc[index, 'signal'] = self.is_signal(td_shape, spike_mid_l, spike_mid_h, row['val'], row['vah'], ao_loc, row['close'], break_through)
-                    cprint(f'index_time: {index_time}, break_through:{break_through}, signal:{df_testing.loc[index, 'signal']}', 'blue')
-                
+                    cprint(f'index_time: {index}, break_through:{break_through}, signal:{df_testing.loc[index, 'signal']}', 'blue')
                 else:
                     break
-        print(df_testing[df_testing['signal'] != 0][['open', 'high', 'low', 'close', 'vah', 'val', 'spkl', 'spkh', 'shape','signal']])
+        print(df_testing[df_testing['signal'] != 0][['open', 'high', 'low', 'close', 'vah', 'val', 'spkl', 'spkh', 'shape', 'ao_loc','signal']])
         sys.exit()
 
 
@@ -363,7 +357,7 @@ if __name__ == "__main__":
         initial_capital     = 500_000,
         underlying  = "HK.HSImain",
         start_date  = "2024-01-01",
-        end_date    = "2024-01-30",
+        end_date    = "2024-01-31",
         bar_size    = KLType.K_5M,
         para_dict   = {
             'short_window'  : [5],
