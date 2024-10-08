@@ -44,6 +44,7 @@ def get_stock_futu_api(underlying:str, start_date:str, end_date:str, ktype:KLTyp
     data = data.drop(columns=['dummy_col', 'real_td'])
     data = data[data['trade_date'] != 'NA']
     data.rename(columns={'time_key':'datetime'}, inplace=True)
+    data['change_rate'] = data['change_rate'].apply(lambda x: round(x, 6))
 
     return data
 
