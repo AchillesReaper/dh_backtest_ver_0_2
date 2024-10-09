@@ -23,7 +23,7 @@ pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 pd.set_option('display.width', None)
 
-class GoldenCrossEnhanceStop(BacktestEngine):
+class MPLing(BacktestEngine):
     def combine_rows(self, df_td:pd.DataFrame, start_time:str, end_time:str) -> pd.DataFrame:
         mask_start = pd.to_datetime(start_time).time()
         mask_end = pd.to_datetime(end_time).time()
@@ -210,61 +210,69 @@ class GoldenCrossEnhanceStop(BacktestEngine):
         df_raw = pd.merge(df_raw, df_mp[['for_td', 'skewness', 'kurtosis', 'high', 'low', 'val', 'vah', 'spkl', 'spkh', 'shape', 'pocs', 'tpo_count']], left_on='trade_date', right_on='for_td', how='left')
         df_raw.set_index('datetime', inplace=True)
         df_raw.rename(columns={'high_x':'high', 'low_x':'low', 'high_y':'high_d', 'low_y': 'low_d'}, inplace=True)
-        print(df_raw.info())
-        print(df_raw[['trade_date', 'open', 'high', 'low', 'close', 'volume', 'skewness', 'kurtosis', 'val', 'vah', 'spkl', 'spkh', 'shape', ]])
 
         return  df_raw
     
 
-    def is_break_through(self, td_shape:str, spike_mid_l:float, spike_mid_h:float, ao_loc:str, session_close:float, break_through:list) -> list:
+    def is_stand_above(self, td_shape:str, spike_mid_l:float, spike_mid_h:float, ao_loc:str, session_close:float) -> bool:
         if (td_shape not in ['b', 'p', 'n', 'double']) or (ao_loc not in ['u_spk', 'l_spk', 'va', 'poc']): 
-            return None
+            return False
         match td_shape:
-            case 'b':
+            case 'b' | 'p':
                 match ao_loc:
                     case 'u_spk':
-                        if session_close > spike_mid_h:
-                            break_through.append(True)
-                        else:
-                            break_through.append(False)
+                            return True if session_close > spike_mid_h else False
                     case 'l_spk':
-                        if session_close < spike_mid_l:
-                            break_through.append(True)
-                        else:
-                            break_through.append(False)
+                            return True if session_close > spike_mid_l else False
+                    case _:
+                        return False
             case _:
-                pass
-        return break_through
-    
-    def is_signal(self, td_shape:str, spike_mid_l:float, spike_mid_h:float, val:float, vah:float, ao_loc:str, session_close:float, break_through:list) -> int:
+                return False
+
+
+    def is_signal(self, td_shape:str, spike_mid_l:float, spike_mid_h:float, val:float, vah:float, ao_loc:str, session_close:float, stand_above:bool) -> int:
         match td_shape:
             case 'b':
                 match ao_loc:
                     case 'u_spk':
-                        if all(break_through) and (session_close < spike_mid_h + 50):
+                        if stand_above and (session_close < spike_mid_h + 50):
                             return 1
-                        elif not all(break_through) and (session_close > vah):
+                        elif not stand_above and (session_close > vah):
                             return -1
                         else:
                             return 0
                     case 'l_spk':
-                        if all(break_through) and (session_close > spike_mid_l - 50):
-                            return -1
-                        elif not all(break_through) and (session_close < val):
+                        if stand_above and (session_close < val):
                             return 1
+                        elif not stand_above and (session_close > spike_mid_l - 50):
+                            return -1
                         else:
                             return 0
-                pass
+            case 'p':
+                match ao_loc:
+                    case 'u_spk':
+                        if stand_above and (session_close > spike_mid_h):
+                            return 1
+                        elif not stand_above and (session_close > spike_mid_h - 50):
+                            return -1
+                        else:
+                            return 0
+                    case 'l_spk':
+                        if stand_above and (session_close < val):
+                            return 1
+                        elif not stand_above and (session_close > spike_mid_l - 50):
+                            return -1
+                        else:
+                            return 0
+
             case _:
                 return 0
 
     def generate_signal(self, df_testing:pd.DataFrame, para_comb:dict) -> pd.DataFrame:
         df_testing['signal'] = 0
-
         for td in df_testing['trade_date'].unique():
             df_td = df_testing[df_testing['trade_date'] == td]
             ao_loc          = 'na'      # 'na', 'u_spk', 'l_spk', 'va', 'poc
-            break_through   = []        # True, False
             td_shape        = df_td['shape'].iloc[0]
             spike_mid_l     = (df_td['spkl'].iloc[0] + df_td['low_d'].iloc[0]) / 2
             spike_mid_h     = (df_td['spkh'].iloc[0] + df_td['high_d'].iloc[0]) / 2
@@ -278,19 +286,18 @@ class GoldenCrossEnhanceStop(BacktestEngine):
                         ao_loc = 'l_spk'
                     else:
                         ao_loc = 'na'
-                        break
                     df_testing.loc[df_td.index[0]:df_td.index[len(df_td)-1], 'ao_loc'] = ao_loc
-                    break_through = self.is_break_through(td_shape, spike_mid_l, spike_mid_h, ao_loc, row['close'], break_through)
+                    if ao_loc == 'na': break
                 elif index_time == pd.Timestamp('09:25').time():
-                    break_through = self.is_break_through(td_shape, spike_mid_l, spike_mid_h, ao_loc, row['close'], break_through)
+                    pass
                 elif index_time == pd.Timestamp('09:30').time():
-                    break_through = self.is_break_through(td_shape, spike_mid_l, spike_mid_h, ao_loc, row['close'], break_through)
-                    df_testing.loc[index, 'signal'] = self.is_signal(td_shape, spike_mid_l, spike_mid_h, row['val'], row['vah'], ao_loc, row['close'], break_through)
-                    cprint(f'index_time: {index}, break_through:{break_through}, signal:{df_testing.loc[index, 'signal']}', 'blue')
+                    stand_above = self.is_stand_above(td_shape, spike_mid_l, spike_mid_h, ao_loc, row['close'])
+                    df_testing.loc[index, 'stand_above'] = stand_above
+                    df_testing.loc[index, 'signal'] = self.is_signal(td_shape, spike_mid_l, spike_mid_h, row['val'], row['vah'], ao_loc, row['close'], stand_above)
+                    cprint(f'index_time: {index}, break_through:{stand_above}, signal:{df_testing.loc[index, 'signal']}', 'blue')
                 else:
                     break
-        print(df_testing[df_testing['signal'] != 0][['open', 'high', 'low', 'close', 'vah', 'val', 'spkl', 'spkh', 'shape', 'ao_loc','signal']])
-        sys.exit()
+        return df_testing
 
 
 
@@ -353,7 +360,7 @@ class GoldenCrossEnhanceStop(BacktestEngine):
 
 
 if __name__ == "__main__":
-    engine = GoldenCrossEnhanceStop(
+    engine = MPLing(
         initial_capital     = 500_000,
         underlying  = "HK.HSImain",
         start_date  = "2024-01-01",
