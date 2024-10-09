@@ -7,7 +7,7 @@ from termcolor import cprint
 def to_csv_with_metadata(df:pd.DataFrame, file_name:str, folder:str = 'data/backtest'):
     if not os.path.exists(folder): os.makedirs(folder)
     path_name = f'{folder}/{file_name}'
-    df.to_csv(f'{path_name}.csv', index=True)
+    df.to_csv(f'{path_name}.csv', index=False)
     with open(f'{path_name}.json', 'w') as f:
         json.dump(df.attrs, f)
         f.close()
@@ -16,7 +16,7 @@ def to_csv_with_metadata(df:pd.DataFrame, file_name:str, folder:str = 'data/back
 
 def read_csv_with_metadata(file_name:str, folder:str = 'data/backtest') -> pd.DataFrame:
     path_name = f'{folder}/{file_name}'
-    df = pd.read_csv(f'{path_name}.csv', index_col=0)
+    df = pd.read_csv(f'{path_name}.csv')
     with open(f'{path_name}.json', 'r') as f:
         df.attrs = json.load(f)
         f.close()
