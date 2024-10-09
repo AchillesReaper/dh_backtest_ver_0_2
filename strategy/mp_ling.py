@@ -294,18 +294,16 @@ class MPLing(BacktestEngine):
                     stand_above = self.is_stand_above(td_shape, spike_mid_l, spike_mid_h, ao_loc, row['close'])
                     df_testing.loc[index, 'stand_above'] = stand_above
                     df_testing.loc[index, 'signal'] = self.is_signal(td_shape, spike_mid_l, spike_mid_h, row['val'], row['vah'], ao_loc, row['close'], stand_above)
-                    cprint(f'index_time: {index}, break_through:{stand_above}, signal:{df_testing.loc[index, 'signal']}', 'blue')
+                    # cprint(f'index_time: {index}, break_through:{stand_above}, signal:{df_testing.loc[index, 'signal']}', 'blue')
                 else:
                     break
         return df_testing
 
 
-
-
     def action_on_signal(self, df_testing_signal: pd.DataFrame, para_comb:dict) -> pd.DataFrame:
         # 1. initialize the trading, a) create a trade account, b) initialize the trading dataframe
         trade_account = FutureTradingAccount(self.init_capital)
-        df_bt_resilt = self.init_trading(df_testing_signal, trade_account)
+        df_bt_result = self.init_trading(df_testing_signal, trade_account)
 
         # 2. loop through the signals
         for index, row in df_testing_signal.iterrows():
@@ -319,6 +317,32 @@ class MPLing(BacktestEngine):
             2. if signal is sell and current position short or zero, add a short position
             3. if the signal direction is opposit to current position -> next step: is close position?
             '''
+            initial_margin_per_contract = row['close']* trade_account.contract_multiplier * trade_account.margin_rate
+            if trade_account.bal_avialable > initial_margin_per_contract:   # check if sufficient cash to open a position
+                if is_signal_buy and trade_account.position_size >= 0:
+                    t_size     = 1
+                    t_price    = row['close']
+                    commission = trade_account.open_position(t_size, t_price)
+                    df_bt_result.loc[index, 'action']       = 'open'
+                    df_bt_result.loc[index, 'logic']        = 'signal buy'
+                    df_bt_result.loc[index, 't_size']       = t_size
+                    df_bt_result.loc[index, 't_price']      = t_price
+                    df_bt_result.loc[index, 'commission']   = commission
+                    df_bt_result.loc[index, 'pnl_action']   = -commission
+                    trade_account.stop_level                = t_price - para_comb['stop_loss']
+                    is_mtm                                  = True
+                elif is_signal_sell and trade_account.position_size <= 0:
+                    t_size     = -1
+                    t_price    = row['close']
+                    commission = trade_account.open_position(t_size, t_price)
+                    df_bt_result.loc[index, 'action']       = 'open'
+                    df_bt_result.loc[index, 'logic']        = 'signal sell'
+                    df_bt_result.loc[index, 't_size']       = t_size
+                    df_bt_result.loc[index, 't_price']      = t_price
+                    df_bt_result.loc[index, 'commission']   = commission
+                    df_bt_result.loc[index, 'pnl_action']   = -commission
+                    trade_account.stop_level                = t_price + para_comb['stop_loss']
+                    is_mtm                                  = True
 
 
             # b) determine if it is time to close position
@@ -326,59 +350,68 @@ class MPLing(BacktestEngine):
             1. when the position loss reach the stop loss, close the position
             2. when the margin call, close the position -> this is handled in the mark_to_market function
             '''
-
-
-
+            if not is_mtm:
+                is_stop_loss      = (trade_account.position_size > 0 and row['close'] < trade_account.stop_level) or (trade_account.position_size < 0 and row['close'] > trade_account.stop_level)
+                is_close_position =  is_stop_loss or (trade_account.position_size != 0 and pd.Timestamp(index).time() == pd.Timestamp('10:15').time())
+                if is_close_position:
+                    t_size     = copy.deepcopy(-trade_account.position_size)
+                    t_price    = row['close']
+                    commission, pnl_realized = trade_account.close_position(t_size, t_price)
+                    df_bt_result.loc[index, 'action']       = 'close'
+                    df_bt_result.loc[index, 'logic']        = 'enhanced stop' if is_stop_loss else 'max_hold'
+                    df_bt_result.loc[index, 't_size']       = t_size
+                    df_bt_result.loc[index, 't_price']      = t_price 
+                    df_bt_result.loc[index, 'commission']   = commission
+                    df_bt_result.loc[index, 'pnl_action']   = pnl_realized
+                    is_mtm                                  = True
 
             # c) mark profile value to market
             if not is_mtm:
                 mtm_res = trade_account.mark_to_market(row['close'])
                 if mtm_res['action'] == 'force close':
-                    df_bt_resilt.loc[index, 'action']       = mtm_res['action']
-                    df_bt_resilt.loc[index, 'logic']        = mtm_res['logic']
-                    df_bt_resilt.loc[index, 't_size']       = mtm_res['t_size']
-                    df_bt_resilt.loc[index, 't_price']      = mtm_res['t_price']
-                    df_bt_resilt.loc[index, 'commission']   = mtm_res['commission']
-                    df_bt_resilt.loc[index, 'pnl_action']   = mtm_res['pnl_realized']
+                    df_bt_result.loc[index, 'action']       = mtm_res['action']
+                    df_bt_result.loc[index, 'logic']        = mtm_res['logic']
+                    df_bt_result.loc[index, 't_size']       = mtm_res['t_size']
+                    df_bt_result.loc[index, 't_price']      = mtm_res['t_price']
+                    df_bt_result.loc[index, 'commission']   = mtm_res['commission']
+                    df_bt_result.loc[index, 'pnl_action']   = mtm_res['pnl_realized']
                 if trade_account.position_size > 0 and row['close'] > trade_account.stop_level + para_comb['stop_loss'] + para_comb['ladder']:
                     trade_account.stop_level += para_comb['stop_loss']
                 elif trade_account.position_size < 0 and row['close'] < trade_account.stop_level - para_comb['stop_loss'] - para_comb['ladder']:
                     trade_account.stop_level -= para_comb['stop_loss']
             
-            # d) record account status in df_bt_resilt
-            df_bt_resilt.loc[index,'pos_size']       = trade_account.position_size
-            df_bt_resilt.loc[index,'pos_price']      = trade_account.position_price
-            df_bt_resilt.loc[index,'pnl_unrealized'] = trade_account.pnl_unrealized
-            df_bt_resilt.loc[index,'nav']            = trade_account.bal_equity
-            df_bt_resilt.loc[index,'bal_cash']       = trade_account.bal_cash
-            df_bt_resilt.loc[index,'bal_avialable']  = trade_account.bal_avialable
-            df_bt_resilt.loc[index,'margin_initial'] = trade_account.margin_initial
-            df_bt_resilt.loc[index,'cap_usage']      = f'{trade_account.cap_usage:.4f}'
-
-        return df_bt_resilt
+            # d) record account status in df_bt_result
+            df_bt_result.loc[index,'pos_size']       = trade_account.position_size
+            df_bt_result.loc[index,'pos_price']      = trade_account.position_price
+            df_bt_result.loc[index,'pnl_unrealized'] = trade_account.pnl_unrealized
+            df_bt_result.loc[index,'nav']            = trade_account.bal_equity
+            df_bt_result.loc[index,'bal_cash']       = trade_account.bal_cash
+            df_bt_result.loc[index,'bal_avialable']  = trade_account.bal_avialable
+            df_bt_result.loc[index,'margin_initial'] = trade_account.margin_initial
+            df_bt_result.loc[index,'cap_usage']      = f'{trade_account.cap_usage:.4f}'
+        df_bt_result.reset_index(inplace=True)
+        return df_bt_result
 
 
 
 if __name__ == "__main__":
     engine = MPLing(
-        initial_capital     = 500_000,
+        initial_capital     = 1_000_000,
         underlying  = "HK.HSImain",
-        start_date  = "2024-01-01",
+        start_date  = "2020-01-01",
         end_date    = "2024-01-31",
         bar_size    = KLType.K_5M,
         para_dict   = {
-            'short_window'  : [5],
-            'long_window'   : [20],
             'stop_loss'     : [50],
-            'ladder'        : [20],
+            'ladder'        : [10, 20, 30, 40],
         },
         folder_path         = "strategy/data/mp_ling",
         is_rerun_backtest   = True,
-        is_update_data      = True,
-        summary_mode        = True,
-        multi_process_mode  = False,
+        is_update_data      = False,
+        summary_mode        = False,
+        multi_process_mode  = True,
     )
     if engine.is_update_data: engine.generate_mp()
     bt_result_list = engine.run()
-    # PlotApp(bt_result_list).plot()
+    PlotApp(bt_result_list).plot()
 
