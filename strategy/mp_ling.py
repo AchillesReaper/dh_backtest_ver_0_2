@@ -342,6 +342,7 @@ class MPLing(BacktestEngine):
                     df_bt_result.loc[index, 'commission']   = commission
                     df_bt_result.loc[index, 'pnl_action']   = -commission
                     trade_account.stop_level                = t_price + para_comb['stop_loss']
+                    df_bt_result.loc[index, 'stop_level']   = trade_account.stop_level
                     is_mtm                                  = True
 
 
@@ -379,6 +380,7 @@ class MPLing(BacktestEngine):
                     trade_account.stop_level += para_comb['stop_loss']
                 elif trade_account.position_size < 0 and row['close'] < trade_account.stop_level - para_comb['stop_loss'] - para_comb['ladder']:
                     trade_account.stop_level -= para_comb['stop_loss']
+                    df_bt_result.loc[index, 'stop_level']   = trade_account.stop_level
             
             # d) record account status in df_bt_result
             df_bt_result.loc[index,'pos_size']       = trade_account.position_size
