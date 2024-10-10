@@ -120,7 +120,7 @@ class PlotApp:
                                     dash_table.DataTable(id='bt_result_table', style_table = self.style_element,
                                         data=df_performance[['ref_tag', 'pnl_trading', 'roi_trading', 'mdd_pct_trading', 'sharpe_ratio']].to_dict('records'),
                                         columns=[
-                                            {'name': 'Backtest Reference', 'id': 'ref_tag'},
+                                            {'name': 'Ref', 'id': 'ref_tag'},
                                             {'name': 'Profit/Loss', 'id': 'pnl_trading', 'type': 'numeric', 'format': money},
                                             {'name': 'ROI', 'id': 'roi_trading', 'type': 'numeric', 'format': percentage},
                                             {'name': 'MDD', 'id': 'mdd_pct_trading', 'type': 'numeric', 'format': percentage},
@@ -132,6 +132,7 @@ class PlotApp:
                                         style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'},
                                         style_cell={'textAlign': 'left'},
                                         style_cell_conditional=[
+                                            {'if': {'column_id': 'ref_tag'}, 'maxWidth': '80px', 'overflow': 'hidden', 'textOverflow': 'hidden'},
                                             {'if': {'column_id': 'pnl_trading'}, 'textAlign': 'right'},
                                             {'if': {'column_id': 'roi_trading'}, 'textAlign': 'right'},
                                             {'if': {'column_id': 'mdd_pct_trading'}, 'textAlign': 'right'},
@@ -509,7 +510,6 @@ class PlotApp:
         )
 
         return fig
-
 
 
     def plot_summary(self) -> go.Figure:

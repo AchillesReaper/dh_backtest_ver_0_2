@@ -59,12 +59,23 @@ class BacktestEngine:
         para_list = list(itertools.product(*para_values))
 
         df = pd.DataFrame(para_list, columns=para_keys)
-        ref_tag = [f'{self.file_name}_bt_{i+1:03d}' for i in df.index]
-        df['ref_tag'] = ref_tag
+        para_comb_dict = df.to_dict(orient='index')
+        ref_tag_list = []
+        for comb in para_comb_dict.values():
+            comb_str = '_'.join([f'{k}={v}' for k, v in comb.items()])
+            file_name = '_'.join([
+                f'strategy={self.__class__.__name__}', 
+                f'initCap={self.init_capital}',
+                f'underlying={self.file_name}', 
+                f'{self.bar_size}', 
+                f'{self.start_date}', 
+                f'{self.end_date}', 
+                comb_str
+            ])
+            ref_tag_list.append(file_name)
+        df['ref_tag'] = ref_tag_list
         df.set_index('ref_tag', inplace=True)
-        self.para_comb_dict = df.to_dict(orient='index')
-        
-
+        self.para_comb_dict = df.to_dict(orient='index') 
 
     # Strategic specific functions
     def get_hist_data(self) -> pd.DataFrame:
@@ -285,19 +296,19 @@ class BacktestEngine:
 
     def read_backtest_result(self) -> List[pd.DataFrame]:
         '''Read the backtest results from the the designated folder.'''
+        self.get_all_para_combinations()
+        file_name_list = self.para_comb_dict.keys()
         backtest_results = []
-        try:
-            bt_result_path = os.path.join(self.folder_path, 'bt_results')
-            file_list = list(set(file_n.split('.')[0] for file_n in os.listdir(bt_result_path)))
-            for file in file_list:
-                if self.file_name in file:
-                    cprint(f'Reading backtest result from: {file} ......', 'yellow')
-                    backtest_results.append(read_csv_with_metadata(file, folder=bt_result_path))
-            return backtest_results
-        except Exception as e:
-            cprint("Error: failed to read the backtest results!", 'red')
-            print(e)
-            sys.exit()
+        bt_result_folder = os.path.join(self.folder_path, 'bt_results')
+        for file_name in file_name_list:
+            try:
+                cprint(f'Reading backtest result from: {file_name} ......', 'yellow')
+                backtest_results.append(read_csv_with_metadata(file_name, folder=bt_result_folder))
+            except Exception as e:
+                cprint(f"Error: failed to read the backtest results for {file_name}!", 'red')
+                print(e)
+        return backtest_results
+
 
 
     def run(self) -> List[pd.DataFrame]:
