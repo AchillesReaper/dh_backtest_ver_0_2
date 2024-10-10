@@ -273,8 +273,10 @@ class BacktestEngine:
 
         # 2. save the backtest result to local file
         bt_result_folder = os.path.join(self.folder_path, 'bt_results')
-        if self.summary_mode:
+        if self.summary_mode == 1:
             df_bt_result = df_bt_result[df_bt_result['t_size'] != 0]
+        elif self.summary_mode == 2:
+            df_bt_result = df_bt_result[(df_bt_result['t_size'] != 0) | (df_bt_result['pnl_unrealized'] != 0)]
         to_csv_with_metadata(df_bt_result, ref_tag, bt_result_folder)
         
         # 3. return the backtest result

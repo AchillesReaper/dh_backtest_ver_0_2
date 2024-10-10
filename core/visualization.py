@@ -342,13 +342,21 @@ class PlotApp:
         )
         # price movement of the underlying
         fig.add_trace(
-            go.Candlestick(
+            # go.Candlestick(
+            #     x       = df_bt_result['datetime'],
+            #     open    = df_bt_result['open'],
+            #     high    = df_bt_result['high'],
+            #     low     = df_bt_result['low'],
+            #     close   = df_bt_result['close'],
+            #     name    = 'Price',
+            # ),
+            go.Scatter(
                 x       = df_bt_result['datetime'],
-                open    = df_bt_result['open'],
-                high    = df_bt_result['high'],
-                low     = df_bt_result['low'],
-                close   = df_bt_result['close'],
+                y       = df_bt_result['close'],
+                mode    = 'lines',
                 name    = 'Price',
+                line    = dict(color='blue', width=1),
+                customdata = [df_bt_result.attrs['ref_tag']] * len(df_bt_result),
             ),
             row=1, col=1,
             secondary_y=False

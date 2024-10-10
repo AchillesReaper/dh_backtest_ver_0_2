@@ -58,7 +58,7 @@ class GoldenCrossEnhanceStop(BacktestEngine):
     def action_on_signal(self, df_testing_signal: pd.DataFrame, para_comb:dict) -> pd.DataFrame:
         # 1. initialize the trading, a) create a trade account, b) initialize the trading dataframe
         trade_account = FutureTradingAccount(self.init_capital)
-        df_bt_resilt = self.init_trading(df_testing_signal, trade_account)
+        df_bt_result = self.init_trading(df_testing_signal, trade_account)
 
         # 2. loop through the signals
         for index, row in df_testing_signal.iterrows():
@@ -77,23 +77,23 @@ class GoldenCrossEnhanceStop(BacktestEngine):
                 if is_signal_buy and trade_account.position_size >= 0:
                     t_size     = 1
                     commission = trade_account.open_position(t_size, row['close'])
-                    df_bt_resilt.loc[index, 'action']       = 'open'
-                    df_bt_resilt.loc[index, 'logic']        = 'signal buy'
-                    df_bt_resilt.loc[index, 't_size']       = t_size
-                    df_bt_resilt.loc[index, 't_price']      = row['close']
-                    df_bt_resilt.loc[index, 'commission']   = commission
-                    df_bt_resilt.loc[index, 'pnl_action']   = -commission
+                    df_bt_result.loc[index, 'action']       = 'open'
+                    df_bt_result.loc[index, 'logic']        = 'signal buy'
+                    df_bt_result.loc[index, 't_size']       = t_size
+                    df_bt_result.loc[index, 't_price']      = row['close']
+                    df_bt_result.loc[index, 'commission']   = commission
+                    df_bt_result.loc[index, 'pnl_action']   = -commission
                     trade_account.stop_level = row['close'] - para_comb['stop_loss']
                     is_mtm = True
                 elif is_signal_sell and trade_account.position_size <= 0:
                     t_size     = -1
                     commission = trade_account.open_position(t_size, row['close'])
-                    df_bt_resilt.loc[index, 'action']       = 'open'
-                    df_bt_resilt.loc[index, 'logic']        = 'signal sell'
-                    df_bt_resilt.loc[index, 't_size']       = t_size
-                    df_bt_resilt.loc[index, 't_price']      = row['close']
-                    df_bt_resilt.loc[index, 'commission']   = commission
-                    df_bt_resilt.loc[index, 'pnl_action']   = -commission
+                    df_bt_result.loc[index, 'action']       = 'open'
+                    df_bt_result.loc[index, 'logic']        = 'signal sell'
+                    df_bt_result.loc[index, 't_size']       = t_size
+                    df_bt_result.loc[index, 't_price']      = row['close']
+                    df_bt_result.loc[index, 'commission']   = commission
+                    df_bt_result.loc[index, 'pnl_action']   = -commission
                     trade_account.stop_level = row['close'] + para_comb['stop_loss']
                     is_mtm = True
 
@@ -108,12 +108,12 @@ class GoldenCrossEnhanceStop(BacktestEngine):
                     t_size     = copy.deepcopy(-trade_account.position_size)
                     t_price    = row['close']
                     commission, pnl_realized = trade_account.close_position(t_size, t_price)
-                    df_bt_resilt.loc[index, 'action']       = 'close'
-                    df_bt_resilt.loc[index, 'logic']        = 'enhanced stop'
-                    df_bt_resilt.loc[index, 't_size']       = t_size
-                    df_bt_resilt.loc[index, 't_price']      = t_price 
-                    df_bt_resilt.loc[index, 'commission']   = commission
-                    df_bt_resilt.loc[index, 'pnl_action']   = pnl_realized
+                    df_bt_result.loc[index, 'action']       = 'close'
+                    df_bt_result.loc[index, 'logic']        = 'enhanced stop'
+                    df_bt_result.loc[index, 't_size']       = t_size
+                    df_bt_result.loc[index, 't_price']      = t_price 
+                    df_bt_result.loc[index, 'commission']   = commission
+                    df_bt_result.loc[index, 'pnl_action']   = pnl_realized
                     is_mtm = True
 
 
@@ -123,28 +123,28 @@ class GoldenCrossEnhanceStop(BacktestEngine):
             if not is_mtm:
                 mtm_res = trade_account.mark_to_market(row['close'])
                 if mtm_res['action'] == 'force close':
-                    df_bt_resilt.loc[index, 'action']       = mtm_res['action']
-                    df_bt_resilt.loc[index, 'logic']        = mtm_res['logic']
-                    df_bt_resilt.loc[index, 't_size']       = mtm_res['t_size']
-                    df_bt_resilt.loc[index, 't_price']      = mtm_res['t_price']
-                    df_bt_resilt.loc[index, 'commission']   = mtm_res['commission']
-                    df_bt_resilt.loc[index, 'pnl_action']   = mtm_res['pnl_realized']
+                    df_bt_result.loc[index, 'action']       = mtm_res['action']
+                    df_bt_result.loc[index, 'logic']        = mtm_res['logic']
+                    df_bt_result.loc[index, 't_size']       = mtm_res['t_size']
+                    df_bt_result.loc[index, 't_price']      = mtm_res['t_price']
+                    df_bt_result.loc[index, 'commission']   = mtm_res['commission']
+                    df_bt_result.loc[index, 'pnl_action']   = mtm_res['pnl_realized']
                 if trade_account.position_size > 0 and row['close'] > trade_account.stop_level + para_comb['stop_loss'] + para_comb['ladder']:
                     trade_account.stop_level += para_comb['stop_loss']
                 elif trade_account.position_size < 0 and row['close'] < trade_account.stop_level - para_comb['stop_loss'] - para_comb['ladder']:
                     trade_account.stop_level -= para_comb['stop_loss']
             
-            # d) record account status in df_bt_resilt
-            df_bt_resilt.loc[index,'pos_size']       = trade_account.position_size
-            df_bt_resilt.loc[index,'pos_price']      = trade_account.position_price
-            df_bt_resilt.loc[index,'pnl_unrealized'] = trade_account.pnl_unrealized
-            df_bt_resilt.loc[index,'nav']            = trade_account.bal_equity
-            df_bt_resilt.loc[index,'bal_cash']       = trade_account.bal_cash
-            df_bt_resilt.loc[index,'bal_avialable']  = trade_account.bal_avialable
-            df_bt_resilt.loc[index,'margin_initial'] = trade_account.margin_initial
-            df_bt_resilt.loc[index,'cap_usage']      = f'{trade_account.cap_usage:.4f}'
-
-        return df_bt_resilt
+            # d) record account status in df_bt_result
+            df_bt_result.loc[index,'pos_size']       = trade_account.position_size
+            df_bt_result.loc[index,'pos_price']      = trade_account.position_price
+            df_bt_result.loc[index,'pnl_unrealized'] = trade_account.pnl_unrealized
+            df_bt_result.loc[index,'nav']            = trade_account.bal_equity
+            df_bt_result.loc[index,'bal_cash']       = trade_account.bal_cash
+            df_bt_result.loc[index,'bal_avialable']  = trade_account.bal_avialable
+            df_bt_result.loc[index,'margin_initial'] = trade_account.margin_initial
+            df_bt_result.loc[index,'cap_usage']      = f'{trade_account.cap_usage:.4f}'
+        
+        return df_bt_result
 
 
 
@@ -163,8 +163,8 @@ if __name__ == "__main__":
         },
         folder_path         = "strategy/data/golden_cross_es",
         is_rerun_backtest   = True,
-        is_update_data      = True,
-        summary_mode        = True,
+        is_update_data      = False,
+        summary_mode        = 2, # 1->only (t_size != 0); 2->(t_size == 0)|(pnl_unrealiszed !=0); 3->all
         multi_process_mode  = True,
     )
 
