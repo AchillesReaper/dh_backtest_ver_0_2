@@ -22,10 +22,8 @@ class FutureTradingAccount():
         self.stop_level             = 0                         # stop level for the current position
 
     def mark_to_market(self, mk_price):
-        if self.position_size > 0:
+        if self.position_size != 0:
             self.pnl_unrealized = (mk_price - self.position_price) * self.position_size * self.contract_multiplier
-        elif self.position_size < 0:
-            self.pnl_unrealized = (self.position_price - mk_price) * self.position_size * self.contract_multiplier
         else:
             self.pnl_unrealized = 0
             self.position_price = 0
