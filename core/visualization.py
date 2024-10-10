@@ -60,7 +60,7 @@ class PlotApp:
 
     def __init__(self, df_bt_result_list: List[pd.DataFrame]) -> None:
         self.df_bt_result_list = df_bt_result_list
-        df_performance_columns = ['ref_tag'] + list(df_bt_result_list[0].attrs['performance_report'].keys())
+        df_performance_columns = ['ref_tag', 'strategy', 'init_capital', 'underlying'] + list(df_bt_result_list[0].attrs['performance_report'].keys())
         df_performance = pd.DataFrame(columns=df_performance_columns)
         df_para_columns = ['ref_tag'] + (list(df_bt_result_list[0].attrs['para_comb'].keys()))
         df_para = pd.DataFrame(columns=df_para_columns)
@@ -69,6 +69,9 @@ class PlotApp:
         for df in df_bt_result_list:
             df_performance.loc[df.attrs['ref_tag']] = [
                 df.attrs['ref_tag'],
+                df.attrs['strategy'],
+                df.attrs['init_capital'],
+                df.attrs['underlying'],
                 df.attrs['performance_report']['number_of_trades'],
                 df.attrs['performance_report']['win_rate'],
                 df.attrs['performance_report']['total_cost'],
@@ -283,8 +286,11 @@ class PlotApp:
             current_ref_performance = df_performance.loc[current_ref]
             df_table_1 = pd.DataFrame(
                 {
-                    'bt_performance':['Number of Trades', 'Win Rate', 'Total Cost', 'PnL Trading', 'ROI Trading'],
+                    'bt_performance':['Strategy', 'Init Cap', 'Underlying','Number of Trades', 'Win Rate', 'Total Cost', 'PnL Trading', 'ROI Trading'],
                     'performance_value':[
+                        f'{current_ref_performance["strategy"]}',
+                        f'{current_ref_performance["init_capital"]:,.2f}',
+                        f'{current_ref_performance["underlying"]}',
                         f'{current_ref_performance["number_of_trades"]:,}',
                         f'{current_ref_performance["win_rate"]:.2%}',
                         f'{current_ref_performance["total_cost"]:,.2f}',

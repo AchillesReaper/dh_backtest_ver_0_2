@@ -274,6 +274,7 @@ class BacktestEngine:
             'ref_tag'           : ref_tag,
             'strategy'          : self.__class__.__name__,
             'init_capital'      : self.init_capital,
+            'underlying'        : self.file_name,
             'para_comb'         : para_comb,
             'performance_report': self.generate_bt_report(df_bt_result),
             'benchmark': {
