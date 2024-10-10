@@ -75,7 +75,7 @@ class GoldenCrossEnhanceStop(BacktestEngine):
             '''
             initial_margin_per_contract = t_price * trade_account.contract_multiplier * trade_account.margin_rate
             if trade_account.bal_avialable > initial_margin_per_contract:   # check if sufficient cash to open a position
-                if is_signal_buy and trade_account.position_size >= 0 and t_price > trade_account.position_price:
+                if is_signal_buy and trade_account.position_size >= 0 and t_price > trade_account.position_price and (para_comb['direction'] == 'long' or para_comb['direction'] == 'both'):
                     t_size     = 1
                     commission = trade_account.open_position(t_size, t_price)
                     df_bt_result.loc[index, 'action']       = 'open'
@@ -87,7 +87,7 @@ class GoldenCrossEnhanceStop(BacktestEngine):
                     trade_account.stop_level                = t_price - para_comb['stop_loss']
                     df_bt_result.loc[index, 'stop_level']   = trade_account.stop_level
                     is_mtm = True
-                elif is_signal_sell and ((trade_account.position_size == 0) or (trade_account.position_size < 0 and t_price < trade_account.position_price)):
+                elif is_signal_sell and ((trade_account.position_size == 0) or (trade_account.position_size < 0 and t_price < trade_account.position_price)) and (para_comb['direction'] == 'short' or para_comb['direction'] == 'both'):
                     t_size     = -1
                     commission = trade_account.open_position(t_size, t_price)
                     df_bt_result.loc[index, 'action']       = 'open'
@@ -156,12 +156,13 @@ class GoldenCrossEnhanceStop(BacktestEngine):
 
 if __name__ == "__main__":
     engine = GoldenCrossEnhanceStop(
-        initial_capital     = 500_000,
+        initial_capital     = 1_000_000,
         underlying  = "HK.HSImain",
         start_date  = "2024-08-01",
         end_date    = "2024-08-30",
         bar_size    = KLType.K_5M,
         para_dict   = {
+            'direction'     : ['long', 'short', 'both'],
             'short_window'  : [5],
             'long_window'   : [20],
             'stop_loss'     : [50],
