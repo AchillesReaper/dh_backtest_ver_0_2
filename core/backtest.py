@@ -95,7 +95,7 @@ class BacktestEngine:
         df_testing['pnl_action'] = 0.0  # realised P/L from the action, including commission
         df_testing['pos_size']   = 0    # position size
         df_testing['pos_price']  = 0.0  # position average price
-
+        df_testing['stop_level'] = 0.0  # stop loss level
         df_testing['pnl_unrealized'] = float(trade_account.pnl_unrealized)        # unrealized profit and loss
         df_testing['nav']            = float(trade_account.bal_equity)            # net asset value = cash balance + unrealized profit and loss
         df_testing['bal_cash']       = float(trade_account.bal_cash)              # cash balance: booked equity

@@ -19,6 +19,7 @@ class FutureTradingAccount():
         self.commission_rate        = commission_rate
         self.position_size          = 0                         # position size -> number of contracts. note: -ve denotes short position
         self.position_price         = 0                         # position price -> the averave price of the current position
+        self.stop_level             = 0                         # stop level for the current position
 
     def mark_to_market(self, mk_price):
         if self.position_size > 0:
