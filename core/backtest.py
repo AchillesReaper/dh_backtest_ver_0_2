@@ -308,6 +308,9 @@ class BacktestEngine:
             except Exception as e:
                 cprint(f"Error: failed to read the backtest results for {file_name}!", 'red')
                 print(e)
+        if len(backtest_results) == 0:
+            cprint("Error: No backtest results found!", 'red')
+            sys.exit()
         return backtest_results
 
 
