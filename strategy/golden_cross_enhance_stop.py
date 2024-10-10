@@ -84,6 +84,7 @@ class GoldenCrossEnhanceStop(BacktestEngine):
                     df_bt_result.loc[index, 'commission']   = commission
                     df_bt_result.loc[index, 'pnl_action']   = -commission
                     trade_account.stop_level = row['close'] - para_comb['stop_loss']
+                    df_bt_result.loc[index, 'stop_level']   = trade_account.stop_level
                     is_mtm = True
                 elif is_signal_sell and trade_account.position_size <= 0:
                     t_size     = -1
@@ -94,7 +95,8 @@ class GoldenCrossEnhanceStop(BacktestEngine):
                     df_bt_result.loc[index, 't_price']      = row['close']
                     df_bt_result.loc[index, 'commission']   = commission
                     df_bt_result.loc[index, 'pnl_action']   = -commission
-                    trade_account.stop_level = row['close'] + para_comb['stop_loss']
+                    trade_account.stop_level                = row['close'] + para_comb['stop_loss']
+                    df_bt_result.loc[index, 'stop_level']   = trade_account.stop_level
                     is_mtm = True
 
             # b) determine if it is time to close position
@@ -130,9 +132,10 @@ class GoldenCrossEnhanceStop(BacktestEngine):
                     df_bt_result.loc[index, 'commission']   = mtm_res['commission']
                     df_bt_result.loc[index, 'pnl_action']   = mtm_res['pnl_realized']
                 if trade_account.position_size > 0 and row['close'] > trade_account.stop_level + para_comb['stop_loss'] + para_comb['ladder']:
-                    trade_account.stop_level += para_comb['stop_loss']
+                    trade_account.stop_level += para_comb['ladder']
                 elif trade_account.position_size < 0 and row['close'] < trade_account.stop_level - para_comb['stop_loss'] - para_comb['ladder']:
-                    trade_account.stop_level -= para_comb['stop_loss']
+                    trade_account.stop_level -= para_comb['ladder']
+                df_bt_result.loc[index, 'stop_level']   = trade_account.stop_level
             
             # d) record account status in df_bt_result
             df_bt_result.loc[index,'pos_size']       = trade_account.position_size
