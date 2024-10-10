@@ -211,10 +211,15 @@ class PlotApp:
         # update state of current reference
         @self.app.callback(
             Output('current_ref', 'data'),
-            [Input('grapph_all_curves', 'clickData'), Input('bt_result_table', 'active_cell'),],
+            [
+                Input('grapph_all_curves', 'clickData'), 
+                Input('bt_result_table', 'active_cell'),
+                Input('bt_result_table', 'page_current'),
+                Input('bt_result_table', 'page_size'),
+            ],
             State('bt_result_table', 'data')
         )
-        def update_current_ref(clickData, active_cell, tableData):
+        def update_current_ref(clickData, active_cell, page_current, page_size, tableData):
             ctx = dash.callback_context
             if not ctx.triggered:
                 raise PreventUpdate
@@ -228,10 +233,12 @@ class PlotApp:
                 return ref_tag
             
             if trigger_id == 'bt_result_table' and active_cell:
-                ref_tag = tableData[active_cell['row']]['ref_tag']
+                page_current = 0 if page_current is None else page_current
+                row = active_cell['row'] + page_current * page_size
+                ref_tag = tableData[row]['ref_tag']
                 cprint(f'current_ref: {ref_tag}', 'yellow')
                 return ref_tag
-
+            
         # consquence of updating the current reference state
         @self.app.callback(
             [
