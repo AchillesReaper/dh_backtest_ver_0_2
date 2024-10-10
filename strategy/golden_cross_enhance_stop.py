@@ -65,6 +65,7 @@ class GoldenCrossEnhanceStop(BacktestEngine):
             is_signal_buy   = row['signal'] == 1
             is_signal_sell  = row['signal'] == -1
             is_mtm          = False  # current row is marked to market if open or close position
+            t_price         = row['close']
 
             # a) determine if it is time to open position
             ''' Strategy: 
@@ -72,32 +73,33 @@ class GoldenCrossEnhanceStop(BacktestEngine):
             2. if signal is sell and current position short or zero, add a short position
             3. if the signal direction is opposit to current position -> next step: is close position?
             '''
-            initial_margin_per_contract = row['close']* trade_account.contract_multiplier * trade_account.margin_rate
+            initial_margin_per_contract = t_price * trade_account.contract_multiplier * trade_account.margin_rate
             if trade_account.bal_avialable > initial_margin_per_contract:   # check if sufficient cash to open a position
-                if is_signal_buy and trade_account.position_size >= 0:
+                if is_signal_buy and trade_account.position_size >= 0 and t_price > trade_account.position_price:
                     t_size     = 1
-                    commission = trade_account.open_position(t_size, row['close'])
+                    commission = trade_account.open_position(t_size, t_price)
                     df_bt_result.loc[index, 'action']       = 'open'
                     df_bt_result.loc[index, 'logic']        = 'signal buy'
                     df_bt_result.loc[index, 't_size']       = t_size
-                    df_bt_result.loc[index, 't_price']      = row['close']
+                    df_bt_result.loc[index, 't_price']      = t_price
                     df_bt_result.loc[index, 'commission']   = commission
                     df_bt_result.loc[index, 'pnl_action']   = -commission
-                    trade_account.stop_level = row['close'] - para_comb['stop_loss']
+                    trade_account.stop_level                = t_price - para_comb['stop_loss']
                     df_bt_result.loc[index, 'stop_level']   = trade_account.stop_level
                     is_mtm = True
-                elif is_signal_sell and trade_account.position_size <= 0:
+                elif is_signal_sell and ((trade_account.position_size == 0) or (trade_account.position_size < 0 and t_price < trade_account.position_price)):
                     t_size     = -1
-                    commission = trade_account.open_position(t_size, row['close'])
+                    commission = trade_account.open_position(t_size, t_price)
                     df_bt_result.loc[index, 'action']       = 'open'
                     df_bt_result.loc[index, 'logic']        = 'signal sell'
                     df_bt_result.loc[index, 't_size']       = t_size
-                    df_bt_result.loc[index, 't_price']      = row['close']
+                    df_bt_result.loc[index, 't_price']      = t_price
                     df_bt_result.loc[index, 'commission']   = commission
                     df_bt_result.loc[index, 'pnl_action']   = -commission
-                    trade_account.stop_level                = row['close'] + para_comb['stop_loss']
+                    trade_account.stop_level                = t_price + para_comb['stop_loss']
                     df_bt_result.loc[index, 'stop_level']   = trade_account.stop_level
                     is_mtm = True
+
 
             # b) determine if it is time to close position
             ''' Strategy:
@@ -105,10 +107,9 @@ class GoldenCrossEnhanceStop(BacktestEngine):
             2. when the margin call, close the position -> this is handled in the mark_to_market function
             '''
             if not is_mtm:
-                is_close_position = (trade_account.position_size > 0 and row['close'] < trade_account.stop_level) or (trade_account.position_size < 0 and row['close'] > trade_account.stop_level)
+                is_close_position = (trade_account.position_size > 0 and t_price < trade_account.stop_level) or (trade_account.position_size < 0 and t_price > trade_account.stop_level)
                 if is_close_position:
                     t_size     = copy.deepcopy(-trade_account.position_size)
-                    t_price    = row['close']
                     commission, pnl_realized = trade_account.close_position(t_size, t_price)
                     df_bt_result.loc[index, 'action']       = 'close'
                     df_bt_result.loc[index, 'logic']        = 'enhanced stop'
@@ -116,6 +117,8 @@ class GoldenCrossEnhanceStop(BacktestEngine):
                     df_bt_result.loc[index, 't_price']      = t_price 
                     df_bt_result.loc[index, 'commission']   = commission
                     df_bt_result.loc[index, 'pnl_action']   = pnl_realized
+                    trade_account.stop_level                = 0
+                    df_bt_result.loc[index, 'stop_level']   = trade_account.stop_level
                     is_mtm = True
 
 
@@ -123,7 +126,7 @@ class GoldenCrossEnhanceStop(BacktestEngine):
 
             # c) mark profile value to market
             if not is_mtm:
-                mtm_res = trade_account.mark_to_market(row['close'])
+                mtm_res = trade_account.mark_to_market(t_price)
                 if mtm_res['action'] == 'force close':
                     df_bt_result.loc[index, 'action']       = mtm_res['action']
                     df_bt_result.loc[index, 'logic']        = mtm_res['logic']
@@ -131,9 +134,9 @@ class GoldenCrossEnhanceStop(BacktestEngine):
                     df_bt_result.loc[index, 't_price']      = mtm_res['t_price']
                     df_bt_result.loc[index, 'commission']   = mtm_res['commission']
                     df_bt_result.loc[index, 'pnl_action']   = mtm_res['pnl_realized']
-                if trade_account.position_size > 0 and row['close'] > trade_account.stop_level + para_comb['stop_loss'] + para_comb['ladder']:
+                if trade_account.position_size > 0 and t_price > trade_account.stop_level + para_comb['stop_loss'] + para_comb['ladder']:
                     trade_account.stop_level += para_comb['ladder']
-                elif trade_account.position_size < 0 and row['close'] < trade_account.stop_level - para_comb['stop_loss'] - para_comb['ladder']:
+                elif trade_account.position_size < 0 and t_price < trade_account.stop_level - para_comb['stop_loss'] - para_comb['ladder']:
                     trade_account.stop_level -= para_comb['ladder']
                 df_bt_result.loc[index, 'stop_level']   = trade_account.stop_level
             
